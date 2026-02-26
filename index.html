@@ -55,43 +55,58 @@ button {
 <script>
 const qrisStatic = "00020101021126570011ID.DANA.WWW011893600915333496229502093349622950303UMI51440014ID.CO.QRIS.WWW0215ID10222175326650303UMI5204729853033605802ID5911Suryatokoku6012Kab. Cirebon61054518863043F0D";
 
-function crc16(str){
-  let crc=0xFFFF;
-  for(let c=0;c<str.length;c++){
-    crc ^= str.charCodeAt(c)<<8;
-    for(let i=0;i<8;i++){
-      crc=(crc&0x8000)?(crc<<1)^0x1021:crc<<1;
+function crc16(payload) {
+  let crc = 0xFFFF;
+  for (let i = 0; i < payload.length; i++) {
+    crc ^= payload.charCodeAt(i) << 8;
+    for (let j = 0; j < 8; j++) {
+      crc = (crc & 0x8000) ? (crc << 1) ^ 0x1021 : crc << 1;
     }
   }
-  return (crc&0xFFFF).toString(16).toUpperCase().padStart(4,'0');
+  return (crc & 0xFFFF).toString(16).toUpperCase().padStart(4, "0");
+}
+
+function buildDynamicQR(amount){
+
+  // ubah statis → dinamis
+  let payload = qrisStatic.replace("010211","010212");
+
+  // hapus CRC lama
+  payload = payload.substring(0, payload.length - 4);
+
+  // hapus tag CRC identifier (6304)
+  payload = payload.replace(/6304$/,"");
+
+  // tambahkan nominal (tag 54)
+  const amountStr = amount.toString();
+  const tag54 = "54" + amountStr.length.toString().padStart(2,"0") + amountStr;
+
+  payload += tag54;
+
+  // tambahkan CRC identifier
+  payload += "6304";
+
+  // hitung CRC baru
+  payload += crc16(payload);
+
+  return payload;
 }
 
 function generateQR(){
-  let amount=document.getElementById("amount").value;
+  const amount = document.getElementById("amount").value;
 
-  if(!amount){
-    alert("Masukkan nominal dulu");
+  if(!amount || amount <= 0){
+    alert("Masukkan nominal yang benar");
     return;
   }
 
-  let payload=qrisStatic.replace("010211","010212");
-  payload=payload.replace(/6304[A-F0-9]{4}$/,"");
+  const qrData = buildDynamicQR(amount);
 
-  payload+="54"+amount.length.toString().padStart(2,'0')+amount;
-  payload+="6304"+crc16(payload);
-
-  const canvas=document.getElementById("qrcode");
-
-  QRCode.toCanvas(canvas,payload,function(error){
-    if(error){
-      console.error(error);
-      alert("Gagal generate QR");
-    }
-  });
+  QRCode.toCanvas(document.getElementById("qrcode"), qrData, { width: 260 });
 }
 
 function quick(val){
-  document.getElementById("amount").value=val;
+  document.getElementById("amount").value = val;
   generateQR();
 }
 </script>
